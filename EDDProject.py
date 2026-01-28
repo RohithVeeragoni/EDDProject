@@ -21,8 +21,8 @@ class BasketballTracker:
         
         # Color range for the colored circles (HSV)
         # Has low saturation and high value
-        self.lower_color = np.array([35, 150, 80])
-        self.upper_color = np.array([85, 255, 200])
+        self.lower_color = np.array([35, 100, 100])
+        self.upper_color = np.array([75, 255, 255])
         
         # Ball tracking parameters
         self.ball_positions = deque(maxlen=50)  # Store last 50 positions
