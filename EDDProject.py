@@ -7,7 +7,7 @@ class BasketballTracker:
     def __init__(self, camera_index=0):
         """
         Initialize the basketball tracking system
-        q
+        
         Args:
             camera_index: Camera device index (0 for default, or video file path)
         """
@@ -36,6 +36,14 @@ class BasketballTracker:
         # Frame processing
         self.frame_skip = 1  # Process every nth frame for performance
         self.frame_count = 0
+        
+        # Timing and performance metrics
+        self.fps = 0
+        self.frame_times = deque(maxlen=30)  # Track last 30 frame times
+        self.last_frame_time = time.time()
+        self.frame_latency = 0
+        self.detection_time = 0
+        self.draw_time = 0
         
     def calibrate_hoop(self, frame):
         """
@@ -162,9 +170,17 @@ class BasketballTracker:
                 cv2.putText(frame, f"Distance: {distance:.2f}m",
                            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         
-        # Display FPS
-        cv2.putText(frame, f"Positions tracked: {len(self.ball_positions)}",
-                   (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        # Display performance metrics
+        cv2.putText(frame, f"FPS: {self.fps:.1f}",
+                   (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        cv2.putText(frame, f"Frame Latency: {self.frame_latency*1000:.1f}ms",
+                   (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        cv2.putText(frame, f"Detection Time: {self.detection_time*1000:.1f}ms",
+                   (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        cv2.putText(frame, f"Draw Time: {self.draw_time*1000:.1f}ms",
+                   (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        cv2.putText(frame, f"Positions: {len(self.ball_positions)}",
+                   (10, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         
         return frame
     
@@ -178,11 +194,25 @@ class BasketballTracker:
         print("Press 'q' to quit")
         
         while True:
+            # Measure frame capture time
+            loop_start = time.time()
+            
             ret, frame = self.cap.read()
             
             if not ret:
                 print("Failed to grab frame")
                 break
+            
+            # Calculate frame latency
+            current_time = time.time()
+            self.frame_latency = current_time - self.last_frame_time
+            self.last_frame_time = current_time
+            self.frame_times.append(self.frame_latency)
+            
+            # Calculate FPS
+            if len(self.frame_times) > 0:
+                avg_frame_time = sum(self.frame_times) / len(self.frame_times)
+                self.fps = 1.0 / avg_frame_time if avg_frame_time > 0 else 0
             
             self.frame_count += 1
             
@@ -190,8 +220,10 @@ class BasketballTracker:
             if self.frame_count % self.frame_skip != 0:
                 continue
             
-            # Detect ball
+            # Measure detection time
+            detect_start = time.time()
             ball_info = self.detect_ball(frame)
+            self.detection_time = time.time() - detect_start
             
             # Update trajectory
             if ball_info is not None:
@@ -199,11 +231,23 @@ class BasketballTracker:
             else:
                 self.ball_positions.append(None)
             
-            # Draw visualization
+            # Measure drawing time
+            draw_start = time.time()
             display_frame = self.draw_info(frame, ball_info)
+            self.draw_time = time.time() - draw_start
             
             # Show frame
             cv2.imshow("Basketball Tracker", display_frame)
+            
+            # Calculate total loop time
+            total_time = time.time() - loop_start
+            
+            # Print detailed timing info every 30 frames
+            if self.frame_count % 30 == 0:
+                print(f"Frame {self.frame_count}: FPS={self.fps:.1f}, "
+                      f"Total={total_time*1000:.1f}ms, "
+                      f"Detect={self.detection_time*1000:.1f}ms, "
+                      f"Draw={self.draw_time*1000:.1f}ms")
             
             # Handle keyboard input
             key = cv2.waitKey(1) & 0xFF
@@ -225,6 +269,10 @@ class BasketballTracker:
         self.cap.release()
         cv2.destroyAllWindows()
         print("Tracker stopped")
+        print(f"Average FPS: {self.fps:.1f}")
+        if len(self.frame_times) > 0:
+            avg_latency = sum(self.frame_times) / len(self.frame_times)
+            print(f"Average Latency: {avg_latency*1000:.1f}ms")
 
 
 if __name__ == "__main__":
