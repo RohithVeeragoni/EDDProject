@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basketball Shot Tracker | Live Dashboard</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto+Mono:wght@300;400;600&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --primary: #FF6B35;
+            --secondary: #F7931E;
+            --accent: #00D9FF;
+            --dark: #0A0E27;
+            --darker: #05070F;
+            --light: #FFFFFF;
+            --success: #00FF88;
+            --danger: #FF3366;
+            --gray: #4A5568;
+        }
+        
+        body {
+            font-family: 'Roboto Mono', monospace;
+            background: linear-gradient(135deg, var(--darker) 0%, var(--dark) 100%);
+            color: var(--light);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+        
+        /* Animated background grid */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(255, 107, 53, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 107, 53, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Header */
+        header {
+            text-align: center;
+            padding: 30px 0;
+            position: relative;
+            margin-bottom: 40px;
+        }
+        
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 3.5rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 50%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            animation: titleGlow 3s ease-in-out infinite;
+        }
+        
+        @keyframes titleGlow {
+            0%, 100% { filter: drop-shadow(0 0 20px rgba(255, 107, 53, 0.5)); }
+            50% { filter: drop-shadow(0 0 40px rgba(255, 107, 53, 0.8)); }
+        }
+        
+        .subtitle {
+            font-size: 1rem;
+            color: var(--accent);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: 300;
+        }
+        
+        /* Status indicator */
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+            padding: 8px 20px;
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid var(--success);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+        
+        .status.disconnected {
+            background: rgba(255, 51, 102, 0.1);
+            border-color: var(--danger);
+        }
+        
+        .status.disconnected .status-dot {
+            background: var(--danger);
+            animation: none;
+        }
+        
+        /* Main grid layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        /* Card styling */
+        .card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 107, 53, 0.2);
+            border-radius: 15px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.5s ease;
+        }
+        
+        .card:hover::before {
+            transform: scaleX(1);
+        }
+        
+        .card:hover {
+            border-color: var(--primary);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(255, 107, 53, 0.3);
+        }
+        
+        .card-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--accent);
+            margin-bottom: 15px;
+        }
+        
+        .metric-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 3rem;
+            font-weight: 900;
+            color: var(--light);
+            line-height: 1;
+            margin-bottom: 5px;
+        }
+        
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--gray);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* Large display card */
+        .card-large {
+            grid-column: span 2;
+        }
+        
+        /* Statistics grid inside card */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .stat-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--gray);
+            text-transform: uppercase;
+            margin-top: 5px;
+            letter-spacing: 1px;
+        }
+        
+        /* Trajectory visualization */
+        .trajectory-container {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 107, 53, 0.2);
+            overflow: hidden;
+        }
+        
+        #trajectoryCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        /* Performance metrics */
+        .performance-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .bar-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .bar-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+        }
+        
+        .bar-label {
+            color: var(--light);
+            font-weight: 600;
+        }
+        
+        .bar-value {
+            color: var(--accent);
+            font-family: 'Orbitron', sans-serif;
+        }
+        
+        .bar-track {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+        
+        .bar-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        /* Shot accuracy display */
+        .accuracy-circle {
+            width: 150px;
+            height: 150px;
+            margin: 20px auto;
+            position: relative;
+        }
+        
+        .accuracy-svg {
+            transform: rotate(-90deg);
+        }
+        
+        .accuracy-percentage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: var(--success);
+        }
+        
+        /* Buttons */
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            flex: 1;
+            min-width: 120px;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border: none;
+            border-radius: 8px;
+            color: var(--light);
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transition: left 0.5s ease;
+        }
+        
+        .btn:hover::before {
+            left: 100%;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 107, 53, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .card-large {
+                grid-column: span 1;
+            }
+            
+            .metric-value {
+                font-size: 2rem;
+            }
+            
+            .trajectory-container {
+                height: 300px;
+            }
+        }
+        
+        /* Loading animation */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .card {
+            animation: fadeIn 0.6s ease backwards;
+        }
+        
+        .card:nth-child(1) { animation-delay: 0.1s; }
+        .card:nth-child(2) { animation-delay: 0.2s; }
+        .card:nth-child(3) { animation-delay: 0.3s; }
+        .card:nth-child(4) { animation-delay: 0.4s; }
+        .card:nth-child(5) { animation-delay: 0.5s; }
+        .card:nth-child(6) { animation-delay: 0.6s; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Shot Tracker</h1>
+            <div class="subtitle">Real-Time Analytics Dashboard</div>
+            <div class="status" id="status">
+                <div class="status-dot"></div>
+                <span>CONNECTED</span>
+            </div>
+        </header>
+        
+        <div class="dashboard-grid">
+            <!-- FPS Card -->
+            <div class="card">
+                <div class="card-title">Frame Rate</div>
+                <div class="metric-value" id="fps">0.0</div>
+                <div class="metric-label">FPS</div>
+            </div>
+            
+            <!-- Distance Card -->
+            <div class="card">
+                <div class="card-title">Distance to Hoop</div>
+                <div class="metric-value" id="distance">--</div>
+                <div class="metric-label">Meters</div>
+            </div>
+            
+            <!-- Speed Card -->
+            <div class="card">
+                <div class="card-title">Ball Speed</div>
+                <div class="metric-value" id="speed">0.0</div>
+                <div class="metric-label">m/s</div>
+            </div>
+            
+            <!-- Max Speed Card -->
+            <div class="card">
+                <div class="card-title">Max Speed</div>
+                <div class="metric-value" id="maxSpeed">0.0</div>
+                <div class="metric-label">m/s</div>
+            </div>
+            
+            <!-- Shot Statistics Card -->
+            <div class="card card-large">
+                <div class="card-title">Shot Statistics</div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalShots">0</div>
+                        <div class="stat-label">Total Shots</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="madeShots" style="color: var(--success);">0</div>
+                        <div class="stat-label">Made</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="missedShots" style="color: var(--danger);">0</div>
+                        <div class="stat-label">Missed</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="accuracy" style="color: var(--accent);">0%</div>
+                        <div class="stat-label">Accuracy</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Trajectory Visualization -->
+            <div class="card card-large">
+                <div class="card-title">Ball Trajectory</div>
+                <div class="trajectory-container">
+                    <canvas id="trajectoryCanvas"></canvas>
+                </div>
+                <div class="button-group">
+                    <button class="btn" onclick="resetTrajectory()">Reset Trajectory</button>
+                    <button class="btn" onclick="calibrateHoop()">Calibrate Hoop</button>
+                </div>
+            </div>
+            
+            <!-- Performance Metrics -->
+            <div class="card">
+                <div class="card-title">Performance Metrics</div>
+                <div class="performance-bars">
+                    <div class="bar-item">
+                        <div class="bar-header">
+                            <span class="bar-label">Frame Latency</span>
+                            <span class="bar-value" id="latencyValue">0ms</span>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill" id="latencyBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="bar-item">
+                        <div class="bar-header">
+                            <span class="bar-label">Detection Time</span>
+                            <span class="bar-value" id="detectionValue">0ms</span>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill" id="detectionBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="bar-item">
+                        <div class="bar-header">
+                            <span class="bar-label">Draw Time</span>
+                            <span class="bar-value" id="drawValue">0ms</span>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill" id="drawBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="bar-item">
+                        <div class="bar-header">
+                            <span class="bar-label">Positions Tracked</span>
+                            <span class="bar-value" id="positionsValue">0</span>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill" id="positionsBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // WebSocket connection
+        const socket = io();
+        
+        // Canvas setup
+        const canvas = document.getElementById('trajectoryCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size
+        function resizeCanvas() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Connection status
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            document.getElementById('status').classList.remove('disconnected');
+            document.getElementById('status').querySelector('span').textContent = 'CONNECTED';
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            document.getElementById('status').classList.add('disconnected');
+            document.getElementById('status').querySelector('span').textContent = 'DISCONNECTED';
+        });
+        
+        // Update dashboard with new data
+        socket.on('update', (data) => {
+            // Update metrics
+            document.getElementById('fps').textContent = data.fps.toFixed(1);
+            document.getElementById('distance').textContent = data.distance ? data.distance.toFixed(2) : '--';
+            document.getElementById('speed').textContent = data.current_speed.toFixed(2);
+            document.getElementById('maxSpeed').textContent = data.max_speed.toFixed(2);
+            
+            // Update statistics
+            document.getElementById('totalShots').textContent = data.total_shots;
+            document.getElementById('madeShots').textContent = data.made_shots;
+            document.getElementById('missedShots').textContent = data.missed_shots;
+            document.getElementById('accuracy').textContent = data.accuracy.toFixed(1) + '%';
+            
+            // Update performance bars
+            document.getElementById('latencyValue').textContent = data.frame_latency.toFixed(1) + 'ms';
+            document.getElementById('latencyBar').style.width = Math.min(data.frame_latency, 100) + '%';
+            
+            document.getElementById('detectionValue').textContent = data.detection_time.toFixed(1) + 'ms';
+            document.getElementById('detectionBar').style.width = Math.min(data.detection_time / 50 * 100, 100) + '%';
+            
+            document.getElementById('drawValue').textContent = data.draw_time.toFixed(1) + 'ms';
+            document.getElementById('drawBar').style.width = Math.min(data.draw_time / 50 * 100, 100) + '%';
+            
+            document.getElementById('positionsValue').textContent = data.positions_tracked;
+            document.getElementById('positionsBar').style.width = (data.positions_tracked / 50 * 100) + '%';
+            
+            // Draw trajectory
+            drawTrajectory(data.trajectory, data.hoop_position);
+        });
+        
+        // Draw trajectory on canvas
+        function drawTrajectory(trajectory, hoopPosition) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Scale trajectory to canvas
+            const scaleX = canvas.width / 640;
+            const scaleY = canvas.height / 480;
+            
+            // Draw hoop
+            if (hoopPosition) {
+                const hoopX = hoopPosition[0] * scaleX;
+                const hoopY = hoopPosition[1] * scaleY;
+                
+                // Glow effect
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#00FF88';
+                
+                ctx.beginPath();
+                ctx.arc(hoopX, hoopY, 15, 0, Math.PI * 2);
+                ctx.strokeStyle = '#00FF88';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                ctx.shadowBlur = 0;
+                
+                // Label
+                ctx.fillStyle = '#00FF88';
+                ctx.font = '12px Orbitron';
+                ctx.fillText('HOOP', hoopX - 20, hoopY - 25);
+            }
+            
+            // Draw trajectory
+            if (trajectory.length > 0) {
+                ctx.beginPath();
+                
+                for (let i = 0; i < trajectory.length; i++) {
+                    const x = trajectory[i].x * scaleX;
+                    const y = trajectory[i].y * scaleY;
+                    
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                
+                // Gradient stroke
+                const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+                gradient.addColorStop(0, '#FF6B35');
+                gradient.addColorStop(0.5, '#F7931E');
+                gradient.addColorStop(1, '#00D9FF');
+                
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.stroke();
+                
+                // Draw points with fade effect
+                trajectory.forEach((point, index) => {
+                    const x = point.x * scaleX;
+                    const y = point.y * scaleY;
+                    const alpha = (index + 1) / trajectory.length;
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255, 107, 53, ${alpha})`;
+                    ctx.fill();
+                });
+                
+                // Draw current position (last point) larger
+                if (trajectory.length > 0) {
+                    const lastPoint = trajectory[trajectory.length - 1];
+                    const x = lastPoint.x * scaleX;
+                    const y = lastPoint.y * scaleY;
+                    
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#00D9FF';
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, 6, 0, Math.PI * 2);
+                    ctx.fillStyle = '#00D9FF';
+                    ctx.fill();
+                    
+                    ctx.shadowBlur = 0;
+                }
+            }
+        }
+        
+        // Button functions
+        function resetTrajectory() {
+            socket.emit('reset_trajectory');
+        }
+        
+        function calibrateHoop() {
+            alert('Click on the hoop position in the camera feed and press "h"');
+        }
+    </script>
+</body>
+</html>
