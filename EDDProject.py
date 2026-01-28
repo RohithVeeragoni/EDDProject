@@ -19,10 +19,10 @@ class BasketballTracker:
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         self.cap.set(cv2.CAP_PROP_FPS, 30)
         
-        # Color range for white circles (HSV)
-        # White has low saturation and high value
-        self.lower_white = np.array([0, 0, 200])
-        self.upper_white = np.array([180, 30, 255])
+        # Color range for the colored circles (HSV)
+        # Has low saturation and high value
+        self.lower_color = np.array([0, 0, 200])
+        self.upper_color = np.array([180, 30, 255])
         
         # Ball tracking parameters
         self.ball_positions = deque(maxlen=50)  # Store last 50 positions
@@ -80,7 +80,7 @@ class BasketballTracker:
     
     def detect_ball(self, frame):
         """
-        Detect white circle in frame using color detection
+        Detect the colored circle in frame using color detection
         
         Returns:
             Tuple of (center_x, center_y, radius) or None if not found
@@ -88,8 +88,8 @@ class BasketballTracker:
         # Convert to HSV color space
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         
-        # Create mask for white color
-        mask = cv2.inRange(hsv, self.lower_white, self.upper_white)
+        # Create mask for the color
+        mask = cv2.inRange(hsv, self.lower_color, self.upper_color)
         
         # Morphological operations to reduce noise
         kernel = np.ones((5, 5), np.uint8)
@@ -231,8 +231,8 @@ if __name__ == "__main__":
     # Initialize tracker with MacBook camera (default is 0)
     tracker = BasketballTracker(camera_index=0)
     
-    print("\n=== WHITE CIRCLE DETECTION MODE ===")
-    print("Use a white paper circle or white ball for testing")
+    print("\n=== COLORED CIRCLE DETECTION MODE ===")
+    print("Use a colored paper circle or colored ball for testing")
     print("Adjust lighting if detection is poor")
     print("\nControls:")
     print("  'h' - Calibrate target position")
