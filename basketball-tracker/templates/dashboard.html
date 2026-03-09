@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basketball Shot Tracker</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #FF6B35;
+            --primary-dark: #E85A2A;
+            --secondary: #00D9FF;
+            --success: #00FF88;
+            --danger: #FF3366;
+            --warning: #FFB800;
+
+            --bg-dark: #0F1419;
+            --bg-darker: #0A0D11;
+            --card-bg: rgba(255, 255, 255, 0.03);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #FFFFFF;
+            --text-secondary: #8B92A6;
+            --text-muted: #5A5F73;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-darker);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(ellipse at 20% 30%, rgba(255, 107, 53, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 70%, rgba(0, 217, 255, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        header {
+            margin-bottom: 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-left h1 {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #FFFFFF 0%, var(--text-secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 4px;
+        }
+
+        .header-left p {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 100px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+            box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7);
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7);
+            }
+            50% {
+                transform: scale(1.1);
+                box-shadow: 0 0 0 8px rgba(0, 255, 136, 0);
+            }
+        }
+
+        .status.disconnected {
+            background: rgba(255, 51, 102, 0.1);
+            border-color: rgba(255, 51, 102, 0.2);
+        }
+
+        .status.disconnected .status-dot {
+            background: var(--danger);
+            animation: none;
+        }
+
+        /* Grid Layout */
+        .grid {
+            display: grid;
+            gap: 24px;
+            grid-template-columns: 1.5fr 1fr;
+        }
+
+        @media (max-width: 1200px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Card Styles */
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg,
+                transparent,
+                rgba(255, 255, 255, 0.1),
+                transparent
+            );
+        }
+
+        .card:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+            transform: translateY(-2px);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-secondary);
+        }
+
+        .card-badge {
+            font-size: 11px;
+            padding: 4px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 100px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        /* Video Feed */
+        .video-container {
+            position: relative;
+            width: 100%;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow:
+                0 20px 60px -15px rgba(0, 0, 0, 0.5),
+                0 0 0 1px rgba(255, 255, 255, 0.05);
+        }
+
+        #videoFeed {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        #hoopOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        /* Buttons */
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px -3px rgba(255, 107, 53, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px -3px rgba(255, 107, 53, 0.6);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        /* Prediction Display */
+        .prediction {
+            text-align: center;
+            padding: 32px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            margin-bottom: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .prediction::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--secondary), transparent);
+        }
+
+        .prediction-result {
+            font-family: 'Inter', sans-serif;
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 12px;
+            letter-spacing: -1px;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .prediction-result.make {
+            background: linear-gradient(135deg, var(--success), #00FFAA);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .prediction-result.miss {
+            background: linear-gradient(135deg, var(--danger), #FF5588);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .prediction-result.waiting {
+            color: var(--text-muted);
+        }
+
+        .prediction-confidence {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .metric:hover {
+            background: rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .metric-value {
+            font-family: 'Inter', sans-serif;
+            font-size: 32px;
+            font-weight: 800;
+            color: white;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .stat-box {
+            text-align: center;
+            padding: 16px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .stat-box:hover {
+            background: rgba(0, 0, 0, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .stat-number {
+            font-family: 'Inter', sans-serif;
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 6px;
+            letter-spacing: -0.5px;
+        }
+
+        .stat-number.success {
+            background: linear-gradient(135deg, var(--success), #00FFAA);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-number.danger {
+            background: linear-gradient(135deg, var(--danger), #FF5588);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-number.accent {
+            background: linear-gradient(135deg, var(--secondary), #00EEFF);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-text {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        /* Trajectory Canvas */
+        .trajectory-container {
+            width: 100%;
+            height: 280px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            margin-top: 16px;
+            overflow: hidden;
+        }
+
+        #trajectoryCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Info Tip */
+        .info-tip {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 16px;
+            padding: 12px 16px;
+            background: rgba(0, 217, 255, 0.05);
+            border-left: 3px solid var(--secondary);
+            border-radius: 6px;
+            line-height: 1.6;
+        }
+
+        .info-tip strong {
+            color: var(--secondary);
+            font-weight: 600;
+        }
+
+        /* System info badges */
+        .system-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .badge-value {
+            color: white;
+            font-weight: 700;
+        }
+
+        /* Smooth transitions */
+        * {
+            transition: color 0.2s ease, background-color 0.2s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <h1>Basketball Shot Tracker</h1>
+                <p>Real-time trajectory analysis & prediction</p>
+            </div>
+            <div class="status" id="status">
+                <div class="status-dot"></div>
+                <span>CONNECTED</span>
+            </div>
+        </header>
+
+        <div class="grid">
+            <!-- Left Column: Video & Trajectory -->
+            <div>
+                <!-- Live Feed -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Live Feed</div>
+                        <div class="card-badge" id="resolutionBadge">720p HD</div>
+                    </div>
+
+                    <div class="video-container">
+                        <img id="videoFeed" src="/video_feed" alt="Camera Feed">
+                        <canvas id="hoopOverlay"></canvas>
+                    </div>
+
+                    <div class="button-group">
+                        <button class="btn" onclick="autoDetectHoop()">Auto-Detect</button>
+                        <button class="btn" onclick="clearHoop()">Clear</button>
+                        <button class="btn" onclick="resetTrajectory()">Reset</button>
+                    </div>
+
+                    <div class="info-tip">
+                        <strong>Tip:</strong> Click anywhere on the video to manually set hoop position, or use Auto-Detect for automatic orange rim detection.
+                    </div>
+                </div>
+
+                <!-- Trajectory -->
+                <div class="card" style="margin-top: 24px;">
+                    <div class="card-header">
+                        <div class="card-title">Ball Trajectory</div>
+                        <div class="card-badge" id="pointsBadge">0 points</div>
+                    </div>
+                    <div class="trajectory-container">
+                        <canvas id="trajectoryCanvas"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Stats & Metrics -->
+            <div>
+                <!-- Shot Prediction -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Shot Prediction</div>
+                    </div>
+
+                    <div class="prediction">
+                        <div class="prediction-result waiting" id="predictionResult">WAITING</div>
+                        <div class="prediction-confidence" id="predictionConfidence">No shot in progress</div>
+                    </div>
+
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <div class="metric-value" id="apexHeight">--</div>
+                            <div class="metric-label">Apex (m)</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" id="entryAngle">--</div>
+                            <div class="metric-label">Entry Angle</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" id="launchAngle">--</div>
+                            <div class="metric-label">Launch Angle</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" id="speed">--</div>
+                            <div class="metric-label">Speed (m/s)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Session Stats -->
+                <div class="card" style="margin-top: 24px;">
+                    <div class="card-header">
+                        <div class="card-title">Session Stats</div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <div class="stat-number" id="totalShots">0</div>
+                            <div class="stat-text">Total</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-number success" id="madeShots">0</div>
+                            <div class="stat-text">Made</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-number danger" id="missedShots">0</div>
+                            <div class="stat-text">Missed</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-number accent" id="accuracy">0%</div>
+                            <div class="stat-text">Accuracy</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Status -->
+                <div class="card" style="margin-top: 24px;">
+                    <div class="card-header">
+                        <div class="card-title">System Status</div>
+                    </div>
+
+                    <div class="system-badges">
+                        <div class="badge">
+                            <span>FPS:</span>
+                            <span class="badge-value" id="fps">0.0</span>
+                        </div>
+                        <div class="badge">
+                            <span>Points:</span>
+                            <span class="badge-value" id="tracked">0</span>
+                        </div>
+                        <div class="badge">
+                            <span>Depth:</span>
+                            <span class="badge-value" id="depth">--</span>
+                        </div>
+                        <div class="badge">
+                            <span>Distance:</span>
+                            <span class="badge-value" id="distance">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+
+        // Canvas Setup
+        const trajectoryCanvas = document.getElementById('trajectoryCanvas');
+        const trajectoryCtx = trajectoryCanvas.getContext('2d');
+
+        const hoopOverlay = document.getElementById('hoopOverlay');
+        const hoopCtx = hoopOverlay.getContext('2d');
+        let hoopMarkerPos = null;
+
+        // Dynamic resolution - will be updated from server
+        let cameraWidth = 1280;
+        let cameraHeight = 720;
+
+        function resizeCanvases() {
+            trajectoryCanvas.width = trajectoryCanvas.offsetWidth;
+            trajectoryCanvas.height = trajectoryCanvas.offsetHeight;
+
+            const videoFeed = document.getElementById('videoFeed');
+            hoopOverlay.width = videoFeed.offsetWidth;
+            hoopOverlay.height = videoFeed.offsetHeight;
+            drawHoopMarker();
+        }
+
+        function drawHoopMarker() {
+                        hoopCtx.clearRect(0, 0, hoopOverlay.width, hoopOverlay.height);
+
+            if (hoopMarkerPos) {
+                hoopCtx.strokeStyle = '#00FF88';
+                hoopCtx.lineWidth = 3;
+
+                // Outer glow
+                hoopCtx.shadowBlur = 15;
+                hoopCtx.shadowColor = '#00FF88';
+
+                // Crosshair
+                hoopCtx.beginPath();
+                hoopCtx.moveTo(hoopMarkerPos.x, hoopMarkerPos.y - 30);
+                hoopCtx.lineTo(hoopMarkerPos.x, hoopMarkerPos.y + 30);
+                hoopCtx.stroke();
+
+                hoopCtx.beginPath();
+                hoopCtx.moveTo(hoopMarkerPos.x - 30, hoopMarkerPos.y);
+                hoopCtx.lineTo(hoopMarkerPos.x + 30, hoopMarkerPos.y);
+                hoopCtx.stroke();
+
+                // Circle
+                hoopCtx.beginPath();
+                hoopCtx.arc(hoopMarkerPos.x, hoopMarkerPos.y, 18, 0, Math.PI * 2);
+                hoopCtx.stroke();
+
+                hoopCtx.shadowBlur = 0;
+
+                // Label
+                hoopCtx.fillStyle = '#00FF88';
+                hoopCtx.font = 'bold 13px Inter';
+                hoopCtx.textAlign = 'center';
+                hoopCtx.fillText('HOOP', hoopMarkerPos.x, hoopMarkerPos.y - 40);
+            }
+        }
+
+        // Hoop Selection
+        hoopOverlay.addEventListener('click', (e) => {
+            const rect = hoopOverlay.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            hoopMarkerPos = { x, y };
+            drawHoopMarker();
+
+            const videoFeed = document.getElementById('videoFeed');
+            const scaleX = cameraWidth / videoFeed.offsetWidth;
+            const scaleY = cameraHeight / videoFeed.offsetHeight;
+
+            socket.emit('set_hoop_position', {
+                x: Math.round(x * scaleX),
+                y: Math.round(y * scaleY)
+            });
+
+            console.log('✓ Hoop set at:', { x: Math.round(x * scaleX), y: Math.round(y * scaleY) });
+        });
+
+        // Initialize
+        resizeCanvases();
+        document.getElementById('videoFeed').addEventListener('load', resizeCanvases);
+        window.addEventListener('resize', resizeCanvases);
+        setTimeout(resizeCanvases, 500);
+
+        // Socket Events
+        socket.on('connect', () => {
+            console.log('✓ Connected to server');
+            document.getElementById('status').classList.remove('disconnected');
+            document.getElementById('status').querySelector('span').textContent = 'CONNECTED';
+        });
+
+        socket.on('disconnect', () => {
+            console.log('✗ Disconnected from server');
+            document.getElementById('status').classList.add('disconnected');
+            document.getElementById('status').querySelector('span').textContent = 'DISCONNECTED';
+        });
+
+        socket.on('update', (data) => {
+            console.log('📊 Update:', data.fps, 'FPS');
+
+            // Update camera resolution if provided
+            if (data.frame_width && data.frame_height) {
+                cameraWidth = data.frame_width;
+                cameraHeight = data.frame_height;
+
+                // Update resolution badge
+                if (data.frame_width === 1920) {
+                    document.getElementById('resolutionBadge').textContent = '1080p Full HD';
+                } else if (data.frame_width === 1280) {
+                    document.getElementById('resolutionBadge').textContent = '720p HD';
+                } else {
+                    document.getElementById('resolutionBadge').textContent = data.frame_width + 'x' + data.frame_height;
+                }
+            }
+
+            // Performance
+            document.getElementById('fps').textContent = data.fps.toFixed(1);
+            document.getElementById('tracked').textContent = data.positions_tracked;
+            document.getElementById('distance').textContent = data.distance ? data.distance.toFixed(2) + 'm' : '--';
+            document.getElementById('depth').textContent = data.current_depth ? data.current_depth.toFixed(2) + 'm' : '--';
+
+            // Update points badge
+            document.getElementById('pointsBadge').textContent = data.positions_tracked + ' points';
+
+            // Metrics
+            document.getElementById('speed').textContent = data.current_speed ? data.current_speed.toFixed(1) : '--';
+            document.getElementById('launchAngle').textContent = data.launch_angle ? data.launch_angle.toFixed(0) + '°' : '--';
+            document.getElementById('apexHeight').textContent = data.apex_height ? data.apex_height.toFixed(2) : '--';
+            document.getElementById('entryAngle').textContent = data.entry_angle ? data.entry_angle.toFixed(0) + '°' : '--';
+
+            // Prediction
+            const predictionElement = document.getElementById('predictionResult');
+            const confidenceElement = document.getElementById('predictionConfidence');
+
+            if (data.predicted_outcome && data.predicted_outcome.will_make !== undefined) {
+                const willMake = data.predicted_outcome.will_make;
+                const confidence = data.predicted_outcome.confidence || 'unknown';
+
+                predictionElement.textContent = willMake ? 'MAKE' : 'MISS';
+                predictionElement.className = 'prediction-result ' + (willMake ? 'make' : 'miss');
+                confidenceElement.textContent = confidence.toUpperCase() + ' CONFIDENCE';
+            } else {
+                predictionElement.textContent = 'WAITING';
+                predictionElement.className = 'prediction-result waiting';
+                confidenceElement.textContent = 'No shot in progress';
+            }
+
+            // Statistics
+            document.getElementById('totalShots').textContent = data.total_shots;
+            document.getElementById('madeShots').textContent = data.made_shots;
+            document.getElementById('missedShots').textContent = data.missed_shots;
+            document.getElementById('accuracy').textContent = data.accuracy.toFixed(0) + '%';
+
+            // Draw Trajectory
+            drawTrajectory(data.trajectory, data.hoop_position);
+        });
+
+        function drawTrajectory(trajectory, hoopPosition) {
+            trajectoryCtx.clearRect(0, 0, trajectoryCanvas.width, trajectoryCanvas.height);
+
+            const scaleX = trajectoryCanvas.width / cameraWidth;
+            const scaleY = trajectoryCanvas.height / cameraHeight;
+
+            // Draw hoop
+            if (hoopPosition) {
+                const hoopX = hoopPosition[0] * scaleX;
+                const hoopY = hoopPosition[1] * scaleY;
+
+                trajectoryCtx.shadowBlur = 20;
+                trajectoryCtx.shadowColor = '#00FF88';
+
+                trajectoryCtx.beginPath();
+                trajectoryCtx.arc(hoopX, hoopY, 14, 0, Math.PI * 2);
+                trajectoryCtx.strokeStyle = '#00FF88';
+                trajectoryCtx.lineWidth = 3;
+                trajectoryCtx.stroke();
+
+                trajectoryCtx.shadowBlur = 0;
+            }
+
+            // Draw trajectory
+            if (trajectory && trajectory.length > 1) {
+                trajectoryCtx.beginPath();
+
+                for (let i = 0; i < trajectory.length; i++) {
+                    const x = trajectory[i].x * scaleX;
+                    const y = trajectory[i].y * scaleY;
+
+                    if (i === 0) {
+                        trajectoryCtx.moveTo(x, y);
+                    } else {
+                        trajectoryCtx.lineTo(x, y);
+                    }
+                }
+
+                const gradient = trajectoryCtx.createLinearGradient(0, 0, trajectoryCanvas.width, 0);
+                gradient.addColorStop(0, '#FF6B35');
+                gradient.addColorStop(0.5, '#FFB800');
+                gradient.addColorStop(1, '#00D9FF');
+
+                trajectoryCtx.strokeStyle = gradient;
+                trajectoryCtx.lineWidth = 4;
+                trajectoryCtx.lineCap = 'round';
+                trajectoryCtx.lineJoin = 'round';
+                trajectoryCtx.shadowBlur = 10;
+                trajectoryCtx.shadowColor = '#FF6B35';
+                trajectoryCtx.stroke();
+
+                trajectoryCtx.shadowBlur = 0;
+
+                // Draw current ball position
+                if (trajectory.length > 0) {
+                    const lastPoint = trajectory[trajectory.length - 1];
+                    const x = lastPoint.x * scaleX;
+                    const y = lastPoint.y * scaleY;
+
+                    trajectoryCtx.shadowBlur = 15;
+                    trajectoryCtx.shadowColor = '#00D9FF';
+
+                    trajectoryCtx.beginPath();
+                    trajectoryCtx.arc(x, y, 6, 0, Math.PI * 2);
+                    trajectoryCtx.fillStyle = '#00D9FF';
+                    trajectoryCtx.fill();
+
+                    trajectoryCtx.shadowBlur = 0;
+                }
+            }
+        }
+
+        // Button Functions
+        function resetTrajectory() {
+            socket.emit('reset_trajectory');
+            console.log('✓ Trajectory reset');
+        }
+
+        function clearHoop() {
+            hoopMarkerPos = null;
+            drawHoopMarker();
+            socket.emit('set_hoop_position', { x: null, y: null });
+            console.log('✓ Hoop cleared');
+        }
+
+        function autoDetectHoop() {
+            socket.emit('auto_detect_hoop');
+            console.log('🔍 Attempting auto-detect...');
+        }
+
+        // Auto-detect responses
+        socket.on('hoop_detected', (data) => {
+            console.log('✓ Hoop detected:', data.position);
+            const videoFeed = document.getElementById('videoFeed');
+            const scaleX = videoFeed.offsetWidth / cameraWidth;
+            const scaleY = videoFeed.offsetHeight / cameraHeight;
+            hoopMarkerPos = {
+                x: data.position[0] * scaleX,
+                y: data.position[1] * scaleY
+            };
+            drawHoopMarker();
+        });
+
+        socket.on('hoop_detection_failed', (data) => {
+            console.log('✗ Auto-detect failed:', data.message);
+            alert('Auto-detect failed. Please set hoop manually by clicking on the video.');
+        });
+    </script>
+</body>
+</html>
