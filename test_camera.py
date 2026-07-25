@@ -20,13 +20,13 @@ if not cap.isOpened():
         print("SUCCESS: Camera opened with index 1")
         ret, frame = cap.read()
         if ret:
-            print(f"✅ Camera is working! Frame size: {frame.shape}")
+            print(f"Camera is working. Frame size: {frame.shape}")
         cap.release()
 else:
     print("SUCCESS: Camera opened with index 0")
     ret, frame = cap.read()
     if ret:
-        print(f"✅ Camera is working! Frame size: {frame.shape}")
+        print(f"Camera is working. Frame size: {frame.shape}")
     else:
         print("ERROR: Camera opened but cannot read frames")
     cap.release()
