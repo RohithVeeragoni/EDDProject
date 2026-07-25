@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # =============================================
 # Basketball Shot Tracker — Raspberry Pi Setup
 # Run this ONCE on the Pi after cloning the repo
@@ -26,21 +26,21 @@ sudo apt-get install -y \
     git \
     screen
 
-echo "✓ System packages installed"
+echo "System packages installed"
 echo ""
 
 # ── 2. Python virtual environment ─────────
 echo ">>> Creating Python virtual environment..."
 python3 -m venv venv
 source venv/bin/activate
-echo "✓ Virtual environment created"
+echo "Virtual environment created"
 echo ""
 
 # ── 3. Python packages ────────────────────
 echo ">>> Installing Python packages (this may take a few minutes on the Pi)..."
 pip install --upgrade pip
 pip install -r requirements.txt
-echo "✓ Python packages installed"
+echo "Python packages installed"
 echo ""
 
 # ── 4. Systemd service (auto-start on boot) ──
@@ -67,7 +67,7 @@ EOF"
 
 sudo systemctl daemon-reload
 sudo systemctl enable basketball-tracker.service
-echo "✓ Auto-start service installed"
+echo "Auto-start service installed"
 echo ""
 
 # ── Done ──────────────────────────────────

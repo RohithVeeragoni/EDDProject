@@ -1,6 +1,14 @@
 # Basketball Shot Tracker
 
-Real-time basketball shot tracking system built with Python and OpenCV. A colored ball is tracked through a webcam or Limelight camera, its trajectory is modeled as a parabola using polynomial regression, and the system predicts whether the shot will go in before the ball reaches the hoop. Everything streams live to a web dashboard.
+Real-time basketball shot tracking system built with Python and OpenCV. A colored ball is tracked through a Limelight 3A camera, its trajectory is modeled as a parabola using polynomial regression, and the system predicts whether the shot will go in before the ball reaches the hoop. Everything streams live to a web dashboard running on a Raspberry Pi 4B.
+
+---
+
+## Hardware
+
+- **Raspberry Pi 4B** — runs the Python tracking script and hosts the Flask web server
+- **Limelight 3A** — networked camera that streams MJPEG video to the Pi over a local network connection
+- **10000mAh power bank** — powers the Pi and Limelight in the field without needing a wall outlet
 
 ---
 
@@ -24,20 +32,20 @@ pip install -r requirements.txt
 python EDDProject.py
 ```
 
-Open a browser to `http://localhost:5000`.
+Open a browser to `http://localhost:5000`, or from another device on the same network use the Pi's IP address instead of localhost.
 
 ---
 
 ## Camera Setup
 
-On startup the system tries to connect to a Limelight camera over the local network, checking these URLs in order:
+On startup the system tries to connect to the Limelight 3A over the local network, checking these URLs in order:
 
 - `http://limelight.local:5800/stream.mjpeg`
 - `http://limelight.local:5800`
 - `http://limelight.local:5801/stream.mjpeg`
 - `http://limelight.local:5801`
 
-It reads a test frame from each and moves on if nothing comes back. If all four fail, it falls back to the default webcam at index 0. Limelight streams at 1280x960; the webcam falls back to 1280x720.
+It reads a test frame from each and moves on if nothing comes back. If all four fail, it falls back to the default webcam at index 0. The Limelight 3A streams at 1280x960; the webcam fallback runs at 1280x720.
 
 ---
 

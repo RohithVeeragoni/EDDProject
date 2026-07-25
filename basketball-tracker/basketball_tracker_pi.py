@@ -13,7 +13,7 @@ try:
     PICAMERA_AVAILABLE = True
 except ImportError:
     PICAMERA_AVAILABLE = False
-    print("⚠️  picamera2 not available, using OpenCV VideoCapture")
+    print("picamera2 not available, using OpenCV VideoCapture")
 
 class BasketballTrackerPi:
     def __init__(self, use_picamera=True):
@@ -27,7 +27,7 @@ class BasketballTrackerPi:
         self.use_picamera = use_picamera and PICAMERA_AVAILABLE
         
         if self.use_picamera:
-            print("📷 Initializing Raspberry Pi Camera (CSI)...")
+            print("Initializing Raspberry Pi Camera (CSI)...")
             self.picam2 = Picamera2()
             config = self.picam2.create_preview_configuration(
                 main={"size": (640, 480), "format": "RGB888"}
@@ -37,7 +37,7 @@ class BasketballTrackerPi:
             time.sleep(2)  # Camera warm-up
             self.cap = None
         else:
-            print("📷 Initializing USB Camera...")
+            print("Initializing USB Camera...")
             self.cap = cv2.VideoCapture(0)
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
@@ -206,8 +206,8 @@ class BasketballTrackerPi:
     
     def tracking_loop(self):
         """Main tracking loop running in separate thread"""
-        print("🏀 Basketball Shot Tracker Started")
-        print(f"📷 Using: {'Raspberry Pi Camera (CSI)' if self.use_picamera else 'USB Camera'}")
+        print("Basketball Shot Tracker Started")
+        print(f"Using: {'Raspberry Pi Camera (CSI)' if self.use_picamera else 'USB Camera'}")
         
         while self.running:
             loop_start = time.time()
@@ -268,22 +268,22 @@ class BasketballTrackerPi:
         tracking_thread.start()
         
         print("\n" + "="*60)
-        print("🏀 BASKETBALL SHOT TRACKER - WEB INTERFACE")
+        print("BASKETBALL SHOT TRACKER - WEB INTERFACE")
         print("="*60)
-        print("\n📊 Web Dashboard: http://localhost:5000")
-        
+        print("\nWeb Dashboard: http://localhost:5000")
+
         # Try to get IP address
         try:
             import socket
             hostname = socket.gethostname()
             local_ip = socket.gethostbyname(hostname)
-            print(f"🌐 Network Access: http://{local_ip}:5000")
+            print(f"Network Access: http://{local_ip}:5000")
         except:
             pass
-        
-        print("\n✅ The tracker is now running!")
-        print("📱 Open the dashboard in your browser to view real-time data")
-        print("\n⌨️  Press Ctrl+C to stop")
+
+        print("\nTracker is running.")
+        print("Open the dashboard in your browser.")
+        print("\nPress Ctrl+C to stop.")
         print("="*60 + "\n")
         
         # Start Flask server (blocking)
@@ -317,6 +317,6 @@ if __name__ == "__main__":
         # Start tracking and web server
         tracker.start()
     except KeyboardInterrupt:
-        print("\n\n🛑 Shutting down...")
+        print("\nShutting down...")
         tracker.stop()
-        print("✅ Tracker stopped successfully")
+        print("Tracker stopped.")
